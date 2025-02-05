@@ -1,66 +1,78 @@
 version: '3.8'
 
 services:
-  # PostgreSQL service
-  db:
-    image: postgres
+  postgres:
+    image: postgres:15
+    container_name: techpulse_postgres
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: airflow_db
-    ports:
-      - '5432:5432'
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - pgdata:/var/lib/postgresql/data
-
-  # Adminer service to manage PostgreSQL
-  adminer:
-    image: adminer
-    restart: always
+      - postgres_data:/var/lib/postgresql/data
     ports:
-      - '8082:8080'
+      - "5432:5432"
 
-  # Airflow Webserver service
   airflow-webserver:
-    image: apache/airflow:2.6.3
+    image: apache/airflow:2.7.3
+    container_name: techpulse_airflow_webserver
     restart: always
+    depends_on:
+      - postgres
     environment:
-      DB_NAME: ${DB_NAME}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/airflow_db
-      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE: UTC
+      AIRFLOW_UID: ${AIRFLOW_UID}
+      AIRFLOW_GID: ${AIRFLOW_GID}
+    volumes:
+      - airflow_dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
+      - airflow_plugins:/opt/airflow/plugins
     ports:
-      - '8081:8080'
-    depends_on:
-      - db
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-    command: webserver
+      - "8080:8080"
+    command: >
+      bash -c "airflow db init &&
+               airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com &&
+               airflow webserver"
 
-  # Airflow Scheduler service
   airflow-scheduler:
-    image: apache/airflow:2.6.3
+    image: apache/airflow:2.7.3
+    container_name: techpulse_airflow_scheduler
     restart: always
-    environment:
-      DB_NAME: ${DB_NAME}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/airflow_db
     depends_on:
-      - db
       - airflow-webserver
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AIRFLOW_UID: ${AIRFLOW_UID}
+      AIRFLOW_GID: ${AIRFLOW_GID}
     volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-    command: scheduler
+      - airflow_dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
+      - airflow_plugins:/opt/airflow/plugins
+    command: airflow scheduler
+
+  airflow-worker:
+    image: apache/airflow:2.7.3
+    container_name: techpulse_airflow_worker
+    restart: always
+    depends_on:
+      - airflow-scheduler
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AIRFLOW_UID: ${AIRFLOW_UID}
+      AIRFLOW_GID: ${AIRFLOW_GID}
+    volumes:
+      - airflow_dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
+      - airflow_plugins:/opt/airflow/plugins
+    command: airflow worker
 
 volumes:
-  pgdata:
-    driver: local
+  postgres_data:
+  airflow_dags:
+  airflow_logs:
+  airflow_plugins:
