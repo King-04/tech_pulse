@@ -2,6 +2,9 @@
 
 TechPulse is a high-standard data pipeline that automates the extraction, processing, storage, and analysis of technology news from Reddit. It integrates with AWS services to ensure scalability, reliability, and efficiency.
 
+![Diagram](Assets/pipeline_architecture.png)
+
+
 ## Features
 - **Automated Data Extraction**: Uses PRAW (Python Reddit API Wrapper) to fetch top posts from the technology subreddit.
 - **Data Cleaning & Transformation**: Standardizes and refines data for better quality.
